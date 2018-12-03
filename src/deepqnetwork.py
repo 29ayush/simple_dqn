@@ -1,6 +1,7 @@
 from neon.util.argparser import NeonArgparser
 from neon.backends import gen_backend
 from neon.initializers import Xavier
+from math import sqrt
 from neon.optimizers import RMSProp, Adam, Adadelta
 from neon.layers import Affine, Conv, GeneralizedCost
 from neon.transforms import Rectlin
@@ -24,7 +25,8 @@ class DeepQNetwork:
     self.min_reward = args.min_reward
     self.max_reward = args.max_reward
     self.batch_norm = args.batch_norm
-
+    self.momentum   = sqrt( 1 - args.discount_rate)
+    self.momentum   = (1 - self.momentum)/( 1 + self.momentum ) 
     # create Neon backend
     self.be = gen_backend(backend = args.backend,
                  batch_size = args.batch_size,
@@ -112,10 +114,52 @@ class DeepQNetwork:
     assert len(actions.shape) == 1
     assert len(rewards.shape) == 1
     assert len(terminals.shape) == 1
+
+    #for nesterov momentum we save weights
+    self.save_weights("nesterov/t1")
+    self.load_weights("nesterov/t2")
+
+    preq = semitrain(minibatch)
+    Qhalfold = self.targets
+   
+    self.load_weights('nesterov/t1')
+    self.save_weights('nesterov/t2')
+    preq = semitrain(minibatch)
+    Qhalfnew = self.targets
+
+    Qnew = Qhalfnew + self.momentum * (Qhalfnew - Qhalfold)	
+    self.targets.set(Qnew)
+
+    # calculate errors
+    deltas = self.cost.get_errors(preq, self.targets)
+    assert deltas.shape == (self.num_actions, self.batch_size)
+    #assert np.count_nonzero(deltas.asnumpyarray()) == 32
+
+    # calculate cost, just in case
+    cost = self.cost.get_cost(preq, self.targets)
+    assert cost.shape == (1,1)
+
+    # clip errors
+    if self.clip_error:
+      self.be.clip(deltas, -self.clip_error, self.clip_error, out = deltas)
+
+    # perform back-propagation of gradients
+    self.model.bprop(deltas)
+
+    # perform optimization
+    self.optimizer.optimize(self.model.layers_to_optimize, epoch)
+
+    # increase number of weight updates (needed for stats callback)
+    self.train_iterations += 1
+
+    # calculate statistics
+    if self.callback:
+      self.callback.on_train(cost[0,0])
+
+
+def semitrain(self,minibatch):
     assert prestates.shape == poststates.shape
     assert prestates.shape[0] == actions.shape[0] == rewards.shape[0] == poststates.shape[0] == terminals.shape[0]
-
-    # feed-forward pass for poststates to get Q-values
     self._setInput(poststates)
     postq = self.target_model.fprop(self.input, inference = True)
     assert postq.shape == (self.num_actions, self.batch_size)
@@ -144,32 +188,7 @@ class DeepQNetwork:
 
     # copy targets to GPU memory
     self.targets.set(targets)
-
-    # calculate errors
-    deltas = self.cost.get_errors(preq, self.targets)
-    assert deltas.shape == (self.num_actions, self.batch_size)
-    #assert np.count_nonzero(deltas.asnumpyarray()) == 32
-
-    # calculate cost, just in case
-    cost = self.cost.get_cost(preq, self.targets)
-    assert cost.shape == (1,1)
-
-    # clip errors
-    if self.clip_error:
-      self.be.clip(deltas, -self.clip_error, self.clip_error, out = deltas)
-
-    # perform back-propagation of gradients
-    self.model.bprop(deltas)
-
-    # perform optimization
-    self.optimizer.optimize(self.model.layers_to_optimize, epoch)
-
-    # increase number of weight updates (needed for stats callback)
-    self.train_iterations += 1
-
-    # calculate statistics
-    if self.callback:
-      self.callback.on_train(cost[0,0])
+    return preq
 
   def predict(self, states):
     # minibatch is full size, because Neon doesn't let change the minibatch size
