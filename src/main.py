@@ -141,6 +141,7 @@ for epoch in xrange(args.start_epoch, args.epochs):
   logger.info("Epoch #%d" % (epoch + 1))
 
   if args.train_steps:
+    net.save_weights('nesterov/t2')
     logger.info(" Training for %d steps" % args.train_steps)
     # Set env mode test so that loss of life is considered as terminal
     env.setMode('train')

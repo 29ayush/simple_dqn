@@ -108,23 +108,17 @@ class DeepQNetwork:
 
   def train(self, minibatch, epoch):
     # expand components of minibatch
-    prestates, actions, rewards, poststates, terminals = minibatch
-    assert len(prestates.shape) == 4
-    assert len(poststates.shape) == 4
-    assert len(actions.shape) == 1
-    assert len(rewards.shape) == 1
-    assert len(terminals.shape) == 1
 
     #for nesterov momentum we save weights
     self.save_weights("nesterov/t1")
     self.load_weights("nesterov/t2")
 
-    preq = semitrain(minibatch)
+    preq = self.semitrain(minibatch)
     Qhalfold = self.targets
    
     self.load_weights('nesterov/t1')
     self.save_weights('nesterov/t2')
-    preq = semitrain(minibatch)
+    preq = self.semitrain(minibatch)
     Qhalfnew = self.targets
 
     Qnew = Qhalfnew + self.momentum * (Qhalfnew - Qhalfold)	
@@ -157,7 +151,14 @@ class DeepQNetwork:
       self.callback.on_train(cost[0,0])
 
 
-def semitrain(self,minibatch):
+  def semitrain(self,minibatch):
+    prestates, actions, rewards, poststates, terminals = minibatch
+    assert len(prestates.shape) == 4
+    assert len(poststates.shape) == 4
+    assert len(actions.shape) == 1
+    assert len(rewards.shape) == 1
+    assert len(terminals.shape) == 1
+
     assert prestates.shape == poststates.shape
     assert prestates.shape[0] == actions.shape[0] == rewards.shape[0] == poststates.shape[0] == terminals.shape[0]
     self._setInput(poststates)

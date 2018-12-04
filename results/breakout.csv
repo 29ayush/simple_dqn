@@ -1,2 +1,2 @@
 epoch,phase,steps,nr_games,average_reward,min_game_reward,max_game_reward,last_exploration_rate,total_train_steps,replay_memory_count,meanq,meancost,weight_updates,total_time,epoch_time,steps_per_second
-0,random,50000,1509,0.2166998011928431,0,4,1,0,50000,0.137908,0,0,95.09,95.09,525.8176464402145
+0,random,50000,1508,0.2294429708222812,0,3,1,0,100,0.105893,0,0,81.606932,81.606847,612.6936873323876
